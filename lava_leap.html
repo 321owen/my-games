@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lava Leap - Parkour Survival</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600&display=swap');
+
+        :root {
+            --bg-color: #0f172a;
+            --lava-color: #ff4d00;
+            --player-color: #38bdf8;
+            --platform-color: #334155;
+            --accent-color: #fbbf24;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+            color: white;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            background: linear-gradient(to bottom, #1e293b, #0f172a);
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .hud-text {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #progress-container {
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            width: 150px;
+            height: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background: var(--player-color);
+            transition: width 0.3s;
+        }
+
+        #active-powerups {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .powerup-indicator {
+            background: rgba(0,0,0,0.6);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            border: 1px solid rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #menu-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .menu-card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .shop-item {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .btn {
+            background: var(--player-color);
+            color: #0f172a;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            pointer-events: auto;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #7dd3fc;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+
+        .shop-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            background: var(--accent-color);
+        }
+
+        #level-banner {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3rem;
+            color: var(--accent-color);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 15;
+            text-align: center;
+        }
+
+        #touch-controls {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            display: none;
+            justify-content: space-between;
+            padding: 0 40px;
+            pointer-events: none;
+        }
+
+        .touch-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .hidden { display: none !important; }
+
+        @media (max-width: 768px) {
+            #touch-controls { display: flex; }
+            #active-powerups { bottom: 120px; }
+        }
+
+        @keyframes banner-pop {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            20% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="ui-overlay">
+        <div>
+            <div class="hud-text text-xl">LEVEL <span id="level-num">1</span></div>
+            <div class="text-xs opacity-70">GOAL: <span id="level-goal">100</span>m</div>
+            <div id="progress-container"><div id="progress-bar"></div></div>
+        </div>
+        <div class="text-right">
+            <div class="hud-text text-lg"><span id="score">0</span>m</div>
+            <div class="text-xs text-amber-400 font-bold">RUN CORES: <span id="cores-count">0</span></div>
+        </div>
+    </div>
+
+    <div id="active-powerups"></div>
+
+    <div id="level-banner">LEVEL CLEAR!</div>
+
+    <!-- MAIN MENU -->
+    <div id="menu-overlay">
+        <div id="main-view" class="menu-card">
+            <h1 class="text-4xl font-bold mb-2 font-['Orbitron'] text-sky-400">LAVA LEAP</h1>
+            <p id="menu-text" class="text-slate-400 mb-6 text-sm">Survive the heat. Reach the goal heights.</p>
+            
+            <div class="bg-slate-900/50 p-4 rounded-lg mb-6 flex justify-around">
+                <div>
+                    <div class="text-xs uppercase text-slate-500">Best Height</div>
+                    <div class="font-bold text-lg"><span id="high-score">0</span>m</div>
+                </div>
+                <div>
+                    <div class="text-xs uppercase text-slate-500">Total Cores</div>
+                    <div class="font-bold text-lg text-amber-400"><span id="total-cores">0</span></div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <button id="start-btn" class="btn">START CLIMBING</button>
+                <button id="open-shop-btn" class="btn bg-slate-700 text-white">UPGRADES SHOP</button>
+            </div>
+        </div>
+
+        <!-- SHOP VIEW -->
+        <div id="shop-view" class="menu-card hidden">
+            <div class="flex justify-between items-center mb-6">
+                <button id="back-to-menu" class="text-slate-400 hover:text-white">← BACK</button>
+                <h2 class="font-['Orbitron'] text-xl text-amber-400">UPGRADES</h2>
+                <div class="text-amber-400 font-bold">🪙 <span id="shop-cores">0</span></div>
+            </div>
+
+            <div class="space-y-3 text-left">
+                <div class="shop-item">
+                    <div>
+                        <div class="font-bold">Jump Boost</div>
+                        <div class="text-xs text-slate-400">Increase jump height</div>
+                    </div>
+                    <button class="btn shop-btn" onclick="buyUpgrade('jump')">
+                        Lv.<span id="lvl-jump">1</span> | <span id="cost-jump">50</span>
+                    </button>
+                </div>
+
+                <div class="shop-item">
+                    <div>
+                        <div class="font-bold">Speed Boots</div>
+                        <div class="text-xs text-slate-400">Faster movement</div>
+                    </div>
+                    <button class="btn shop-btn" onclick="buyUpgrade('speed')">
+                        Lv.<span id="lvl-speed">1</span> | <span id="cost-speed">50</span>
+                    </button>
+                </div>
+
+                <div class="shop-item">
+                    <div>
+                        <div class="font-bold">Cooling Gel</div>
+                        <div class="text-xs text-slate-400">Slower lava rise</div>
+                    </div>
+                    <button class="btn shop-btn" onclick="buyUpgrade('lava')">
+                        Lv.<span id="lvl-lava">1</span> | <span id="cost-lava">100</span>
+                    </button>
+                </div>
+            </div>
+            <p class="text-[10px] mt-4 text-slate-500 uppercase tracking-widest">Permanent Upgrades</p>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="touch-controls">
+        <div class="flex gap-4">
+            <div id="btn-left" class="touch-btn">←</div>
+            <div id="btn-right" class="touch-btn">→</div>
+        </div>
+        <div id="btn-jump" class="touch-btn">JUMP</div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const uiElements = {
+        score: document.getElementById('score'),
+        highScore: document.getElementById('high-score'),
+        levelNum: document.getElementById('level-num'),
+        levelGoal: document.getElementById('level-goal'),
+        progressBar: document.getElementById('progress-bar'),
+        levelBanner: document.getElementById('level-banner'),
+        coresCount: document.getElementById('cores-count'),
+        totalCores: document.getElementById('total-cores'),
+        shopCores: document.getElementById('shop-cores'),
+        menuText: document.getElementById('menu-text'),
+        menuOverlay: document.getElementById('menu-overlay'),
+        mainView: document.getElementById('main-view'),
+        shopView: document.getElementById('shop-view'),
+        powerupsContainer: document.getElementById('active-powerups')
+    };
+
+    // Save Data
+    let saveData = JSON.parse(localStorage.getItem('lavaLeapData')) || {
+        highScore: 0,
+        totalCores: 0,
+        upgrades: {
+            jump: 1,
+            speed: 1,
+            lava: 1
+        }
+    };
+
+    function save() {
+        localStorage.setItem('lavaLeapData', JSON.stringify(saveData));
+        updateUIStrings();
+    }
+
+    function updateUIStrings() {
+        uiElements.highScore.innerText = saveData.highScore;
+        uiElements.totalCores.innerText = saveData.totalCores;
+        uiElements.shopCores.innerText = saveData.totalCores;
+        
+        ['jump', 'speed', 'lava'].forEach(key => {
+            const lvl = saveData.upgrades[key];
+            document.getElementById(`lvl-${key}`).innerText = lvl;
+            document.getElementById(`cost-${key}`).innerText = lvl * (key === 'lava' ? 100 : 50);
+        });
+    }
+
+    // Game Logic Constants
+    const GRAVITY = 0.6;
+    const FRICTION = 0.85;
+    const WALL_SLIDE_SPEED = 2;
+
+    // Game State
+    let gameState = 'MENU';
+    let currentLevel = 1;
+    let levelHeightGoal = 100;
+    let score = 0;
+    let currentRunCores = 0;
+    let cameraY = 0;
+    let lavaY = 0;
+    let platforms = [];
+    let powerups = [];
+    let startY = 0;
+    let lastLevelScore = 0; // Tracks score at start of current level
+
+    const player = {
+        x: 0, y: 0, width: 30, height: 45,
+        vx: 0, vy: 0, jumpCount: 0, maxJumps: 2,
+        isWallSliding: false, wallDir: 0, color: '#38bdf8',
+        activeEffects: {}
+    };
+
+    const POWERUP_TYPES = {
+        DOUBLE_JUMP: { color: '#60a5fa', icon: '⚡', label: 'Extra Jump', duration: 10000 },
+        SHIELD: { color: '#fb923c', icon: '🛡️', label: 'Lava Shield', duration: Infinity },
+        MAGNET: { color: '#facc15', icon: '🧲', label: 'Core Magnet', duration: 15000 }
+    };
+
+    const keys = {};
+
+    function initGame(resetAll = true) {
+        if (resetAll) {
+            currentLevel = 1;
+            levelHeightGoal = 100;
+            currentRunCores = 0;
+            lastLevelScore = 0;
+        }
+
+        score = 0;
+        cameraY = 0;
+        lavaY = canvas.height + 400;
+        player.x = canvas.width / 2 - player.width / 2;
+        player.y = canvas.height - 150;
+        startY = player.y;
+        player.vx = 0;
+        player.vy = 0;
+        player.activeEffects = {};
+        player.maxJumps = 2;
+        
+        uiElements.levelNum.innerText = currentLevel;
+        uiElements.levelGoal.innerText = levelHeightGoal;
+        uiElements.coresCount.innerText = currentRunCores;
+        
+        platforms = [{ x: 0, y: canvas.height - 50, width: canvas.width, height: 100, type: 'start' }];
+        powerups = [];
+        for(let i = 0; i < 15; i++) generatePlatform();
+        
+        gameState = 'PLAYING';
+        uiElements.menuOverlay.classList.add('hidden');
+    }
+
+    function buyUpgrade(type) {
+        const cost = saveData.upgrades[type] * (type === 'lava' ? 100 : 50);
+        if (saveData.totalCores >= cost) {
+            saveData.totalCores -= cost;
+            saveData.upgrades[type]++;
+            save();
+        }
+    }
+
+    function generatePlatform() {
+        const last = platforms[platforms.length - 1];
+        const maxWidth = Math.max(40, 120 - (currentLevel * 5));
+        const width = 60 + Math.random() * maxWidth;
+        const x = Math.random() * (canvas.width - width);
+        const y = last.y - (80 + Math.random() * 80);
+        
+        const newPlat = { x, y, width, height: 20 };
+        platforms.push(newPlat);
+
+        // Rare chance to spawn powerup (reduced to 6%)
+        if (Math.random() < 0.06) {
+            const types = Object.keys(POWERUP_TYPES);
+            const type = types[Math.floor(Math.random() * types.length)];
+            powerups.push({
+                x: x + width/2,
+                y: y - 30,
+                type: type,
+                pulse: 0
+            });
+        }
+    }
+
+    function update() {
+        if (gameState !== 'PLAYING') return;
+
+        const now = Date.now();
+
+        // Update active effects
+        Object.keys(player.activeEffects).forEach(type => {
+            if (player.activeEffects[type] !== Infinity && now > player.activeEffects[type]) {
+                if (type === 'DOUBLE_JUMP') player.maxJumps = 2;
+                delete player.activeEffects[type];
+            }
+        });
+
+        // Effect Specifics
+        if (player.activeEffects['DOUBLE_JUMP']) player.maxJumps = 3;
+
+        // Apply Upgrades
+        const moveSpeed = 0.8 + (saveData.upgrades.speed * 0.05);
+        const maxMoveSpeed = 6 + (saveData.upgrades.speed * 0.2);
+        const jumpForce = -12 - (saveData.upgrades.jump * 0.3);
+        const lavaSpeedMult = 1 - (Math.min(0.5, saveData.upgrades.lava * 0.05));
+
+        // Horizontal movement
+        if (keys['KeyA'] || keys['ArrowLeft']) player.vx -= moveSpeed;
+        else if (keys['KeyD'] || keys['ArrowRight']) player.vx += moveSpeed;
+        else player.vx *= FRICTION;
+
+        player.vx = Math.max(-maxMoveSpeed, Math.min(maxMoveSpeed, player.vx));
+        player.x += player.vx;
+
+        if (player.x < 0) { player.x = 0; player.vx *= -0.5; }
+        if (player.x + player.width > canvas.width) { player.x = canvas.width - player.width; player.vx *= -0.5; }
+
+        // Vertical movement
+        player.vy += GRAVITY;
+        if (player.isWallSliding && player.vy > WALL_SLIDE_SPEED) player.vy = WALL_SLIDE_SPEED;
+        player.y += player.vy;
+
+        let grounded = false;
+        player.isWallSliding = false;
+
+        platforms.forEach(plat => {
+            if (player.vy > 0 && player.y + player.height > plat.y && 
+                player.y + player.height < plat.y + plat.height + player.vy &&
+                player.x + player.width > plat.x && player.x < plat.x + plat.width) {
+                player.y = plat.y - player.height;
+                player.vy = 0;
+                grounded = true;
+                player.jumpCount = 0;
+            }
+        });
+
+        if (!grounded) {
+            if (player.x <= 0) { player.isWallSliding = player.vy > 0; player.wallDir = -1; }
+            else if (player.x + player.width >= canvas.width) { player.isWallSliding = player.vy > 0; player.wallDir = 1; }
+        }
+
+        if (keys['Space'] || keys['KeyW'] || keys['ArrowUp']) {
+            if (!player.jumpPressed) {
+                if (grounded) { player.vy = jumpForce; player.jumpCount = 1; }
+                else if (player.isWallSliding) {
+                    player.vy = jumpForce;
+                    player.vx = -player.wallDir * (maxMoveSpeed * 1.5);
+                    player.jumpCount = 1;
+                } else if (player.jumpCount < player.maxJumps) {
+                    player.vy = jumpForce;
+                    player.jumpCount++;
+                }
+                player.jumpPressed = true;
+            }
+        } else { player.jumpPressed = false; }
+
+        // Powerup collection
+        powerups = powerups.filter(p => {
+            const dx = (player.x + player.width/2) - p.x;
+            const dy = (player.y + player.height/2) - p.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < 40) {
+                const config = POWERUP_TYPES[p.type];
+                player.activeEffects[p.type] = config.duration === Infinity ? Infinity : Date.now() + config.duration;
+                return false;
+            }
+            return true;
+        });
+
+        // Lava behavior
+        const lavaRise = (1.0 + (currentLevel * 0.2) + (score * 0.001)) * lavaSpeedMult;
+        lavaY -= lavaRise;
+
+        // Camera following
+        cameraY += ((player.y - canvas.height * 0.6) - cameraY) * 0.1;
+
+        // Progress Tracking
+        const dist = Math.max(0, startY - player.y);
+        score = Math.floor(dist / 10);
+        uiElements.score.innerText = score;
+        
+        currentRunCores = Math.floor(score / 5);
+        uiElements.coresCount.innerText = currentRunCores;
+        
+        // Progress bar specifically for the current level's goal
+        const levelProgress = score - lastLevelScore;
+        const currentGoalSize = levelHeightGoal - lastLevelScore;
+        uiElements.progressBar.style.width = Math.min(100, (levelProgress / currentGoalSize) * 100) + '%';
+
+        // Check for Level Clear
+        if (score >= levelHeightGoal) {
+            gameState = 'TRANSITION';
+            uiElements.levelBanner.style.animation = 'banner-pop 2s forwards';
+            setTimeout(() => {
+                lastLevelScore = score;
+                currentLevel++;
+                levelHeightGoal += (100 + (currentLevel * 20)); // Scaling goals
+                
+                // Keep climbing seamlessly
+                platforms = [{ x: 0, y: player.y + 100, width: canvas.width, height: 100, type: 'start' }];
+                startY = player.y + 100;
+                
+                uiElements.levelNum.innerText = currentLevel;
+                uiElements.levelGoal.innerText = levelHeightGoal;
+                
+                for(let i = 0; i < 15; i++) generatePlatform();
+                gameState = 'PLAYING';
+            }, 2000);
+        }
+
+        if (platforms[platforms.length - 1].y > cameraY - 200) generatePlatform();
+
+        // Death check with Shield logic
+        if (player.y + player.height > lavaY) {
+            if (player.activeEffects['SHIELD']) {
+                delete player.activeEffects['SHIELD'];
+                player.vy = -22; // Powerful emergency jump
+                lavaY += 250; // Push lava back further
+            } else {
+                gameOver();
+            }
+        }
+
+        updatePowerupUI();
+    }
+
+    function updatePowerupUI() {
+        uiElements.powerupsContainer.innerHTML = '';
+        const now = Date.now();
+        Object.entries(player.activeEffects).forEach(([type, expiry]) => {
+            const config = POWERUP_TYPES[type];
+            const div = document.createElement('div');
+            div.className = 'powerup-indicator';
+            div.style.borderColor = config.color;
+            div.style.color = config.color;
+            
+            let timeText = '∞';
+            if (expiry !== Infinity) {
+                timeText = Math.ceil((expiry - now) / 1000) + 's';
+            }
+            
+            div.innerHTML = `<span>${config.icon}</span> <span>${config.label}</span> <span class="opacity-50">${timeText}</span>`;
+            uiElements.powerupsContainer.appendChild(div);
+        });
+    }
+
+    function gameOver() {
+        gameState = 'GAMEOVER';
+        saveData.totalCores += currentRunCores;
+        if (score > saveData.highScore) saveData.highScore = score;
+        save();
+
+        uiElements.menuOverlay.classList.remove('hidden');
+        uiElements.mainView.classList.remove('hidden');
+        uiElements.shopView.classList.add('hidden');
+        
+        document.querySelector('h1').innerText = "GAME OVER";
+        document.querySelector('h1').style.color = "#ef4444";
+        uiElements.menuText.innerHTML = `Run Height: ${score}m <br> Earned Cores: <span class="text-amber-400">🪙 ${currentRunCores}</span>`;
+        document.getElementById('start-btn').innerText = "TRY AGAIN";
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(0, -cameraY);
+
+        // Draw Platforms
+        platforms.forEach(plat => {
+            ctx.fillStyle = plat.type === 'start' ? '#1e293b' : '#334155';
+            ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.fillRect(plat.x, plat.y, plat.width, 4);
+        });
+
+        // Draw Powerups
+        powerups.forEach(p => {
+            const config = POWERUP_TYPES[p.type];
+            p.pulse += 0.1;
+            const size = 15 + Math.sin(p.pulse) * 3;
+            
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = config.color;
+            ctx.fillStyle = config.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, size/2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(config.icon, p.x, p.y + 5);
+        });
+
+        // Draw Player
+        ctx.fillStyle = player.color;
+        if (player.activeEffects['SHIELD']) {
+            ctx.strokeStyle = POWERUP_TYPES.SHIELD.color;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(player.x - 5, player.y - 5, player.width + 10, player.height + 10);
+        }
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        
+        ctx.fillStyle = 'white';
+        const eyeOffset = player.vx > 0 ? 15 : (player.vx < 0 ? 5 : 10);
+        ctx.fillRect(player.x + eyeOffset, player.y + 10, 5, 5);
+        ctx.fillRect(player.x + eyeOffset + 8, player.y + 10, 5, 5);
+
+        // Draw Lava
+        const grad = ctx.createLinearGradient(0, lavaY, 0, lavaY + 600);
+        grad.addColorStop(0, '#ff4d00'); grad.addColorStop(1, '#000');
+        ctx.fillStyle = grad;
+        ctx.fillRect(-50, lavaY + Math.sin(Date.now()/200)*5, canvas.width+100, 1000);
+
+        ctx.restore();
+        requestAnimationFrame(() => { update(); draw(); });
+    }
+
+    document.getElementById('start-btn').addEventListener('click', () => initGame(true));
+    document.getElementById('open-shop-btn').addEventListener('click', () => {
+        uiElements.mainView.classList.add('hidden');
+        uiElements.shopView.classList.remove('hidden');
+    });
+    document.getElementById('back-to-menu').addEventListener('click', () => {
+        uiElements.shopView.classList.add('hidden');
+        uiElements.mainView.classList.remove('hidden');
+    });
+
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function setupTouch(id, key) {
+        const el = document.getElementById(id);
+        el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+        el.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+    }
+    setupTouch('btn-left', 'KeyA');
+    setupTouch('btn-right', 'KeyD');
+    setupTouch('btn-jump', 'Space');
+
+    function resize() {
+        canvas.width = Math.min(window.innerWidth, 600);
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+    updateUIStrings();
+    draw();
+</script>
+</body>
+</html>
